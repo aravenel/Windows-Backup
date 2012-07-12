@@ -91,13 +91,14 @@ class Backup:
 
     def _delete_oldest_backup(self, dst):
         """Delete the oldest backup"""
-        oldest_backup = os.path.join(dst, "backup.%s" % ((self.max_backups - 1)))
+        oldest_backup = os.path.join(dst, "backup.%s" % self.max_backups)
         if os.path.isdir(oldest_backup):
             try:
-                os.chmod(os.path.join(dst, "backup.%s" % ((max_backups - 1))), stat.S_IRWXG| stat.S_IRWXU| stat.S_IRWXO)
+                os.chmod(oldest_backup, stat.S_IRWXG| stat.S_IRWXU| stat.S_IRWXO)
                 #os.system('attrib -R %s' % os.path.join(dst, "backup.%s" % ((max_backups - 1))))
                 #os.remove(os.path.join(dst, "backup.%s" % ((max_backups - 1))))
-                shutil.rmtree(os.path.join(dst, "backup.%s" % ((max_backups - 1))), ignore_errors=False, onerror=self._remove_readonly)
+                shutil.rmtree(oldest_backup, ignore_errors=False, onerror=self._remove_readonly)
+                print "Removed oldest backup %s" % oldest_backup
             except OSError, e:
                 print "Unable to delete oldest backup: %s" %e
                 logging.error("Unable to delete oldest backup: %s" %e)
@@ -129,14 +130,16 @@ class Backup:
         rsync = subprocess.Popen('%s -azP --delete %s' % (self.rsync_location, link_dest_string), stdout=subprocess.PIPE, shell=True).communicate()[0]
         logging.info("rsync complete.")
 
-        #Delete the oldest backup
-        self._delete_oldest_backup(dst)
-
         #Move the old backups
         self._move_old_backups(dst)
 
         #Rename most recent backup 
         self._cleanup(dst)
+
+        #Delete the oldest backup--do after everything else completed so as not
+        #to destroy data!
+        self._delete_oldest_backup(dst)
+
 
     def do_backup(self):
         """Backup all folders as provided in self.dirs"""
