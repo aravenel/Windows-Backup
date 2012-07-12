@@ -16,7 +16,7 @@ class Backup:
         """
 
         #Get host OS type
-        self.os_type = platform.version()
+        self.os_type = platform.system()
 
         #Dict of source and dest directories
         self.dirs = dirs
@@ -34,7 +34,7 @@ class Backup:
         if logfile is None:
             self.logfile = os.path.join(os.path.abspath(__file__), 'log.txt')
         else:
-            self.logfile == logfile
+            self.logfile = logfile
 
         #Make sure max_backups is an int!
         try:
@@ -66,75 +66,94 @@ class Backup:
         else:
             raise
 
+    def _move_old_backups(self, dst):
+        """Move old backups back by one. Must pass fully qualified path as dst."""
+        print "Moving old backups...",
+        for backup_num in range(self.max_backups -1, -1, -1):
+            old_filename = os.path.join(dst, "backup.%s" % backup_num)
+            new_filename = os.path.join(dst, "backup.%s" % (backup_num + 1))
+            if os.path.isdir(old_filename): #Make sure it exists--could be first time running
+                logging.info("Moving backup %s to %s..." % (old_filename, new_filename)),
+                print "Moving backup %s to %s..." % (old_filename, new_filename),
+                try:
+                    shutil.move(old_filename, new_filename)
+                    print "Done."
+                    logging.info("Done.")
+                except IOError, e:
+                    print "Unable to move backup %s to %s: %s" % (old_filename, new_filename, e)
+                    logging.error("Unable to move backup %s to %s: %s" % (old_filename, new_filename, e))
+            else:
+                continue
+        print "Done."
+
+    def _delete_oldest_backup(self, dst):
+        oldest_backup = os.path.join(dst, "backup.%s" % ((self.max_backups - 1)))
+        if os.path.isdir(oldest_backup):
+            try:
+                os.chmod(os.path.join(dst, "backup.%s" % ((max_backups - 1))), stat.S_IRWXG| stat.S_IRWXU| stat.S_IRWXO)
+                #os.system('attrib -R %s' % os.path.join(dst, "backup.%s" % ((max_backups - 1))))
+                #os.remove(os.path.join(dst, "backup.%s" % ((max_backups - 1))))
+                shutil.rmtree(os.path.join(dst, "backup.%s" % ((max_backups - 1))), ignore_errors=False, onerror=self._remove_readonly)
+            except OSError, e:
+                print "Unable to delete oldest backup: %s" %e
+                logging.error("Unable to delete oldest backup: %s" %e)
+        else:
+            print "Oldest backup %s does not exist. Skipping." % oldest_backup
+            logging.warn("Oldest backup %s does not exist. Skipping." % oldest_backup)
+
+    def backup_single(self, src, dst):
+
+        #Do the backup
+        if self.os_type == "Windows":
+            link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (self._cygwin_format(dst), self._cygwin_format(src), self._cygwin_format(dst))
+        else:
+            link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (dst, src, dst)
+        #Make empty dir so rsync doesn't complain
+        #os.mkdir(os.path.join(dst, "backup.0"))
+        rsync = subprocess.Popen('%s -azP --delete %s' % (self.rsync_location, link_dest_string), stdout=subprocess.PIPE, shell=True).communicate()[0]
+        logging.info("rsync complete.")
+
+        #Delete the oldest backup
+        self._delete_oldest_backup(dst)
+
+        #Move the old backups
+        self._move_old_backups(dst)
+
+        #Rename the now completed backup
+        #The name of the incomplete backup
+        incomp_back_str = '%s/incomp-backup.0' % (dst)
+        #The name of the complete backup
+        comp_back_str = '%s/backup.0' % (dst)
+        try:
+            #shutil.move(incomp_back_str, comp_back_str)
+            os.rename(incomp_back_str, comp_back_str)
+        except IOError, e:
+            print "Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e)
+            logging.error("Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e))
+        except OSError, e:
+            print "Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e)
+            logging.error("Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e))
+
     def do_backup(self):
         for src, dst in self.dirs.items():
-                #Delete the oldest backup
-                try:
-                    os.chmod(os.path.join(dst, "backup.%s" % ((max_backups - 1))), stat.S_IRWXG| stat.S_IRWXU| stat.S_IRWXO)
-                    #os.system('attrib -R %s' % os.path.join(dst, "backup.%s" % ((max_backups - 1))))
-                    #os.remove(os.path.join(dst, "backup.%s" % ((max_backups - 1))))
-                    shutil.rmtree(os.path.join(dst, "backup.%s" % ((max_backups - 1))), ignore_errors=False, onerror=self._remove_readonly)
-                except OSError, e:
-                    print "Unable to delete oldest backup: %s" %e
-                    logging.error("Unable to delete oldest backup: %s" %e)
-                
-                #Move the old backups back one
-                print "Moving old backups...",
-                for backup_num in range(max_backups -1, -1, -1):
-                    old_filename = os.path.join(dst, "backup.%s" % backup_num)
-                    new_filename = os.path.join(dst, "backup.%s" % (backup_num + 1))
-                    if os.path.isdir(old_filename): #Make sure it exists--could be first time running
-                        logging.info("Moving backup %s to %s..." % (old_filename, new_filename)),
-                        print "Moving backup %s to %s..." % (old_filename, new_filename),
-                        try:
-                            shutil.move(old_filename, new_filename)
-                            print "Done."
-                            logging.info("Done.")
-                        except IOError, e:
-                            print "Unable to move backup %s to %s: %s" % (old_filename, new_filename, e)
-                            logging.error("Unable to move backup %s to %s: %s" % (old_filename, new_filename, e))
-                    else:
-                        continue
-                print "Done."
+            self.backup_single(src, dst)
 
-                #Do the backup
-                if self.os_type == "Windows":
-                    link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (self._cygwin_format(dst), self._cygwin_format(src), self._cygwin_format(dst))
-                else:
-                    link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (dst, src, dst)
-                #Make empty dir so rsync doesn't complain
-                os.mkdir(os.path.join(dst, "backup.0"))
-                rsync = subprocess.Popen('%s -azP --delete %s' % (self.rsync_location, link_dest_string), stdout=subprocess.PIPE, shell=True).communicate()[0]
-                logging.info("rsync complete.")
 
-                #Rename the now completed backup
-                #The name of the incomplete backup
-                incomp_back_str = '%s/incomp-backup.0' % (dst)
-                #The name of the complete backup
-                comp_back_str = '%s/backup.0' % (dst)
-                try:
-                    shutil.move(incomp_back_str, comp_back_str)
-                except IOError, e:
-                    print "Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e)
-                    logging.error("Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e))
-
-##############################
-#   MAIN BACKUP SCRIPT
-##############################
 if __name__ == "__main__":
 
     ##############################
 #   CONFIG
     ##############################
     #Location to use for logfile
-    logfile = r''
+    logfile = r'C:\Users\aravenel\code\testing\backup\log.txt'
     #Command to call rsync
     rsync_location = r'C:\cygwin\bin\rsync.exe'
     #Number of backups to keep
     max_backups = 5
     #Dictionary of backup locations--source folder as key, destination folder as value
     dirs = {
-            r'/cygdrive/c/Users/ravenel/Documents/EA Games': r'/cygdrive/c/Users/ravenel/Documents/test',
+            r'C:\Users\aravenel\Pictures': r'C:\Users\aravenel\code\testing\backup',
+            #r'/cygdrive/c/Users/ravenel/Documents/EA Games': r'/cygdrive/c/Users/ravenel/Documents/test',
             #r'C:\Users\ravenel\Documents\EA Games': r'C:\Users\ravenel\Documents\test',
             #r'C:\Users\ravenel\Documents\EA Games': r'Y:\backups\test',
     }
