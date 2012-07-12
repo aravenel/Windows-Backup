@@ -1,0 +1,5 @@
+Backup script to control rsync using link-dest option to create rolling 
+incremental backups (a la Time Machine).
+
+Contains logic to work in both Windows and Linux. If using in Windows, must 
+provide location of cygwin rsync.exe binary.
