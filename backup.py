@@ -21,7 +21,9 @@ class Backup:
         #Dict of source and dest directories
         self.dirs = dirs
 
+        #Set the rsync location
         if self.os_type == "Windows":
+            #Windows, must have location of cygwin rsync.exe binary
             if rsync_location is None:
                 print "Running on Windows OS. Must provide location of rsync binary (cygwin)"
                 exit()
@@ -31,12 +33,13 @@ class Backup:
             #Running Linux, can just call from command line
             self.rsync_location = 'rsync'
 
+        #Set logfile location, else use current directory
         if logfile is None:
             self.logfile = os.path.join(os.path.abspath(__file__), 'log.txt')
         else:
             self.logfile = logfile
 
-        #Make sure max_backups is an int!
+        #Set max number of backups to keep
         try:
             int(max_backups)
             self.max_backups = max_backups
@@ -87,6 +90,7 @@ class Backup:
         print "Done."
 
     def _delete_oldest_backup(self, dst):
+        """Delete the oldest backup"""
         oldest_backup = os.path.join(dst, "backup.%s" % ((self.max_backups - 1)))
         if os.path.isdir(oldest_backup):
             try:
@@ -101,15 +105,27 @@ class Backup:
             print "Oldest backup %s does not exist. Skipping." % oldest_backup
             logging.warn("Oldest backup %s does not exist. Skipping." % oldest_backup)
 
-    def backup_single(self, src, dst):
+    def _cleanup(self, dst):
+        """Rename the just-completed backup to conform to naming convention"""
+        #Rename the now completed backup
+        #The name of the incomplete backup
+        incomp_back_str = '%s/incomp-backup.0' % (dst)
+        #The name of the complete backup
+        comp_back_str = '%s/backup.0' % (dst)
+        try:
+            #shutil.move(incomp_back_str, comp_back_str)
+            os.rename(incomp_back_str, comp_back_str)
+        except OSError, e:
+            print "Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e)
+            logging.error("Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e))
 
+    def backup_single(self, src, dst):
+        """Rsync a single directory (src) to backup location (dst)"""
         #Do the backup
         if self.os_type == "Windows":
             link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (self._cygwin_format(dst), self._cygwin_format(src), self._cygwin_format(dst))
         else:
             link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (dst, src, dst)
-        #Make empty dir so rsync doesn't complain
-        #os.mkdir(os.path.join(dst, "backup.0"))
         rsync = subprocess.Popen('%s -azP --delete %s' % (self.rsync_location, link_dest_string), stdout=subprocess.PIPE, shell=True).communicate()[0]
         logging.info("rsync complete.")
 
@@ -119,22 +135,11 @@ class Backup:
         #Move the old backups
         self._move_old_backups(dst)
 
-        #Rename the now completed backup
-        #The name of the incomplete backup
-        incomp_back_str = '%s/incomp-backup.0' % (dst)
-        #The name of the complete backup
-        comp_back_str = '%s/backup.0' % (dst)
-        try:
-            #shutil.move(incomp_back_str, comp_back_str)
-            os.rename(incomp_back_str, comp_back_str)
-        except IOError, e:
-            print "Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e)
-            logging.error("Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e))
-        except OSError, e:
-            print "Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e)
-            logging.error("Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e))
+        #Rename most recent backup 
+        self._cleanup(dst)
 
     def do_backup(self):
+        """Backup all folders as provided in self.dirs"""
         for src, dst in self.dirs.items():
             self.backup_single(src, dst)
 
