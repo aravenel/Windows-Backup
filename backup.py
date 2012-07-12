@@ -26,6 +26,7 @@ class Backup:
             #Windows, must have location of cygwin rsync.exe binary
             if rsync_location is None:
                 print "Running on Windows OS. Must provide location of rsync binary (cygwin)"
+                logging.error("Running on Windows OS. Must provide location of rsync binary (cygwin)")
                 exit()
             else:
                 self.rsync_location = rsync_location
@@ -72,15 +73,14 @@ class Backup:
     def _move_old_backups(self, dst):
         """Move old backups back by one. Must pass fully qualified path as dst."""
         print "Moving old backups...",
+        logging.info("Moving old backups...",)
         for backup_num in range(self.max_backups -1, -1, -1):
             old_filename = os.path.join(dst, "backup.%s" % backup_num)
             new_filename = os.path.join(dst, "backup.%s" % (backup_num + 1))
             if os.path.isdir(old_filename): #Make sure it exists--could be first time running
                 logging.info("Moving backup %s to %s..." % (old_filename, new_filename)),
-                print "Moving backup %s to %s..." % (old_filename, new_filename),
                 try:
                     shutil.move(old_filename, new_filename)
-                    print "Done."
                     logging.info("Done.")
                 except IOError, e:
                     print "Unable to move backup %s to %s: %s" % (old_filename, new_filename, e)
@@ -88,6 +88,7 @@ class Backup:
             else:
                 continue
         print "Done."
+        logging.info("Done.")
 
     def _delete_oldest_backup(self, dst):
         """Delete the oldest backup"""
@@ -98,7 +99,7 @@ class Backup:
                 #os.system('attrib -R %s' % os.path.join(dst, "backup.%s" % ((max_backups - 1))))
                 #os.remove(os.path.join(dst, "backup.%s" % ((max_backups - 1))))
                 shutil.rmtree(oldest_backup, ignore_errors=False, onerror=self._remove_readonly)
-                print "Removed oldest backup %s" % oldest_backup
+                logging.info("Removed oldest backup %s" % oldest_backup)
             except OSError, e:
                 print "Unable to delete oldest backup: %s" %e
                 logging.error("Unable to delete oldest backup: %s" %e)
@@ -139,7 +140,6 @@ class Backup:
         #Delete the oldest backup--do after everything else completed so as not
         #to destroy data!
         self._delete_oldest_backup(dst)
-
 
     def do_backup(self):
         """Backup all folders as provided in self.dirs"""
