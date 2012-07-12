@@ -98,7 +98,10 @@ class Backup:
                 print "Done."
 
                 #Do the backup
-                link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (self._cygwin_format(dst), self._cygwin_format(src), self._cygwin_format(dst))
+                if self.os_type == "Windows":
+                    link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (self._cygwin_format(dst), self._cygwin_format(src), self._cygwin_format(dst))
+                else:
+                    link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (dst, src, dst)
                 #Make empty dir so rsync doesn't complain
                 os.mkdir(os.path.join(dst, "backup.0"))
                 rsync = subprocess.Popen('%s -azP --delete %s' % (self.rsync_location, link_dest_string), stdout=subprocess.PIPE, shell=True).communicate()[0]
