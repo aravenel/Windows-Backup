@@ -10,7 +10,7 @@ from sys import exit
 
 class Backup:
 
-    def __init__(self, dirs, rsync_location=None, logfile=None, max_backups=5):
+    def __init__(self, src, dst, rsync_location=None, logfile=None, max_backups=5):
         """
         Must provide rsync location if on windows!
         """
@@ -18,8 +18,9 @@ class Backup:
         #Get host OS type
         self.os_type = platform.system()
 
-        #Dict of source and dest directories
-        self.dirs = dirs
+        #Source and target
+        self.src = src
+        self.dst = dst
 
         #Set the rsync location
         if self.os_type == "Windows":
@@ -70,13 +71,13 @@ class Backup:
         else:
             raise
 
-    def _move_old_backups(self, dst):
+    def _move_old_backups(self):
         """Move old backups back by one. Must pass fully qualified path as dst."""
         print "Moving old backups...",
         logging.info("Moving old backups...",)
         for backup_num in range(self.max_backups -1, -1, -1):
-            old_filename = os.path.join(dst, "backup.%s" % backup_num)
-            new_filename = os.path.join(dst, "backup.%s" % (backup_num + 1))
+            old_filename = os.path.join(self.dst, "backup.%s" % backup_num)
+            new_filename = os.path.join(self.dst, "backup.%s" % (backup_num + 1))
             if os.path.isdir(old_filename): #Make sure it exists--could be first time running
                 logging.info("Moving backup %s to %s..." % (old_filename, new_filename)),
                 try:
@@ -90,9 +91,9 @@ class Backup:
         print "Done."
         logging.info("Done.")
 
-    def _delete_oldest_backup(self, dst):
+    def _delete_oldest_backup(self):
         """Delete the oldest backup"""
-        oldest_backup = os.path.join(dst, "backup.%s" % self.max_backups)
+        oldest_backup = os.path.join(self.dst, "backup.%s" % self.max_backups)
         if os.path.isdir(oldest_backup):
             try:
                 os.chmod(oldest_backup, stat.S_IRWXG| stat.S_IRWXU| stat.S_IRWXO)
@@ -107,13 +108,13 @@ class Backup:
             print "Oldest backup %s does not exist. Skipping." % oldest_backup
             logging.warn("Oldest backup %s does not exist. Skipping." % oldest_backup)
 
-    def _cleanup(self, dst):
+    def _cleanup(self):
         """Rename the just-completed backup to conform to naming convention"""
         #Rename the now completed backup
         #The name of the incomplete backup
-        incomp_back_str = '%s/incomp-backup.0' % (dst)
+        incomp_back_str = '%s/incomp-backup.0' % (self.dst)
         #The name of the complete backup
-        comp_back_str = '%s/backup.0' % (dst)
+        comp_back_str = '%s/backup.0' % (self.dst)
         try:
             #shutil.move(incomp_back_str, comp_back_str)
             os.rename(incomp_back_str, comp_back_str)
@@ -121,30 +122,25 @@ class Backup:
             print "Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e)
             logging.error("Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e))
 
-    def backup_single(self, src, dst):
+    def do_backup(self):
         """Rsync a single directory (src) to backup location (dst)"""
         #Do the backup
         if self.os_type == "Windows":
-            link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (self._cygwin_format(dst), self._cygwin_format(src), self._cygwin_format(dst))
+            link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (self._cygwin_format(self.dst), self._cygwin_format(self.src), self._cygwin_format(self.dst))
         else:
-            link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (dst, src, dst)
+            link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (self.dst, self.src, self.dst)
         rsync = subprocess.Popen('%s -azP --delete %s' % (self.rsync_location, link_dest_string), stdout=subprocess.PIPE, shell=True).communicate()[0]
         logging.info("rsync complete.")
 
         #Move the old backups
-        self._move_old_backups(dst)
+        self._move_old_backups()
 
         #Rename most recent backup 
-        self._cleanup(dst)
+        self._cleanup()
 
         #Delete the oldest backup--do after everything else completed so as not
         #to destroy data!
-        self._delete_oldest_backup(dst)
-
-    def do_backup(self):
-        """Backup all folders as provided in self.dirs"""
-        for src, dst in self.dirs.items():
-            self.backup_single(src, dst)
+        self._delete_oldest_backup()
 
 
 if __name__ == "__main__":
@@ -166,5 +162,8 @@ if __name__ == "__main__":
             #r'C:\Users\ravenel\Documents\EA Games': r'Y:\backups\test',
     }
 
-    backup = Backup(dirs, rsync_location, logfile, max_backups)
-    backup.do_backup()
+    for src, dst in dirs.items():
+        print "Backing up %s to %s..." % (src, dst)
+        backup = Backup(src, dst, rsync_location, logfile, max_backups)
+        backup.do_backup()
+        print "Done backing up."
