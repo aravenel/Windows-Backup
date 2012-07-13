@@ -12,7 +12,17 @@ class Backup:
 
     def __init__(self, src, dst, rsync_location=None, logfile=None, max_backups=5):
         """
-        Must provide rsync location if on windows!
+        Wrapper object representing an rsync time-machine like backup using the rsync
+        link-dest option. Keeps n number of differential backups.
+
+        Inputs:
+            src: source folder to be backed up.
+            dst: destination of the backup.
+            rsync_location: if running Windows, the location of the cygwin
+                rsync.exe binary.
+            logfile: location for logfile. If left blank, will print to log.txt
+                in the same location as this script.
+            max_backups: number of backups to keep. Defaults to 5.
         """
 
         #Get host OS type
@@ -156,14 +166,18 @@ if __name__ == "__main__":
     max_backups = 5
     #Dictionary of backup locations--source folder as key, destination folder as value
     dirs = {
-            r'C:\Users\aravenel\Pictures': r'C:\Users\aravenel\code\testing\backup',
+            r'C:\Users\aravenel\Pictures': {
+                'dst': r'C:\Users\aravenel\code\testing\backup',
+                'max_backups': 5,
+                }
             #r'/cygdrive/c/Users/ravenel/Documents/EA Games': r'/cygdrive/c/Users/ravenel/Documents/test',
             #r'C:\Users\ravenel\Documents\EA Games': r'C:\Users\ravenel\Documents\test',
             #r'C:\Users\ravenel\Documents\EA Games': r'Y:\backups\test',
     }
 
-    for src, dst in dirs.items():
-        print "Backing up %s to %s..." % (src, dst)
-        backup = Backup(src, dst, rsync_location, logfile, max_backups)
+    for src, options in dirs.items():
+        print "Backing up %s to %s..." % (src, options['dst'])
+        backup = Backup(src, options['dst'], rsync_location, logfile, 
+                options['max_backups'])
         backup.do_backup()
         print "Done backing up."
