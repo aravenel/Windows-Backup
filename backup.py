@@ -61,7 +61,8 @@ class Backup:
             exit()
 
         #Setup logging
-        logging.basicConfig(filename=self.logfile, level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s')
+        logging.basicConfig(filename=self.logfile, level=logging.DEBUG,
+                format='%(asctime)s %(levelname)s: %(message)s')
 
     def _cygwin_format(self, dir):
         """Format a windows directory to format usable by cygwin."""
@@ -89,13 +90,16 @@ class Backup:
             old_filename = os.path.join(self.dst, "backup.%s" % backup_num)
             new_filename = os.path.join(self.dst, "backup.%s" % (backup_num + 1))
             if os.path.isdir(old_filename): #Make sure it exists--could be first time running
-                logging.info("Moving backup %s to %s..." % (old_filename, new_filename)),
+                logging.info("Moving backup %s to %s..." % (old_filename, 
+                    new_filename)),
                 try:
                     shutil.move(old_filename, new_filename)
                     logging.info("Done.")
                 except IOError, e:
-                    print "Unable to move backup %s to %s: %s" % (old_filename, new_filename, e)
-                    logging.error("Unable to move backup %s to %s: %s" % (old_filename, new_filename, e))
+                    print "Unable to move backup %s to %s: %s" % (old_filename,
+                            new_filename, e)
+                    logging.error("Unable to move backup %s to %s: %s" % (old_filename,
+                        new_filename, e))
             else:
                 continue
         print "Done."
@@ -109,7 +113,8 @@ class Backup:
                 os.chmod(oldest_backup, stat.S_IRWXG| stat.S_IRWXU| stat.S_IRWXO)
                 #os.system('attrib -R %s' % os.path.join(dst, "backup.%s" % ((max_backups - 1))))
                 #os.remove(os.path.join(dst, "backup.%s" % ((max_backups - 1))))
-                shutil.rmtree(oldest_backup, ignore_errors=False, onerror=self._remove_readonly)
+                shutil.rmtree(oldest_backup, ignore_errors=False,
+                        onerror=self._remove_readonly)
                 logging.info("Removed oldest backup %s" % oldest_backup)
             except OSError, e:
                 print "Unable to delete oldest backup: %s" %e
@@ -129,17 +134,23 @@ class Backup:
             #shutil.move(incomp_back_str, comp_back_str)
             os.rename(incomp_back_str, comp_back_str)
         except OSError, e:
-            print "Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e)
-            logging.error("Unable to move backup %s to %s: %s" % (incomp_back_str, comp_back_str, e))
+            print "Unable to move backup %s to %s: %s" % (incomp_back_str,
+                    comp_back_str, e)
+            logging.error("Unable to move backup %s to %s: %s" % (incomp_back_str,
+                comp_back_str, e))
 
     def do_backup(self):
         """Rsync a single directory (src) to backup location (dst)"""
         #Do the backup
         if self.os_type == "Windows":
-            link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (self._cygwin_format(self.dst), self._cygwin_format(self.src), self._cygwin_format(self.dst))
+            link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (
+                    self._cygwin_format(self.dst), self._cygwin_format(self.src),
+                    self._cygwin_format(self.dst))
         else:
-            link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (self.dst, self.src, self.dst)
-        rsync = subprocess.Popen('%s -azP --delete %s' % (self.rsync_location, link_dest_string), stdout=subprocess.PIPE, shell=True).communicate()[0]
+            link_dest_string = '--link-dest="%s/backup.0" "%s" "%s/incomp-backup.0"' % (
+                    self.dst, self.src, self.dst)
+        rsync = subprocess.Popen('%s -azP --delete %s' % (self.rsync_location,
+            link_dest_string), stdout=subprocess.PIPE, shell=True).communicate()[0]
         logging.info("rsync complete.")
 
         #Move the old backups
